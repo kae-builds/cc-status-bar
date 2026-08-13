@@ -63,7 +63,7 @@ struct ConnectionSetupView: View {
                     Text("Unable to generate QR code")
                         .foregroundColor(.secondary)
                         .font(.caption)
-                    if !WebServer.shared.isRunning {
+                    if !WebServer.shared.isRemoteEnabled {
                         Text("Web Server is not running")
                             .foregroundColor(.orange)
                             .font(.caption)
@@ -80,7 +80,7 @@ struct ConnectionSetupView: View {
                 ConnectionInfoRow(label: "SSH Port", value: "22")
                 ConnectionInfoRow(
                     label: "API Port",
-                    value: WebServer.shared.isRunning
+                    value: WebServer.shared.isRemoteEnabled
                         ? String(WebServer.shared.actualPort)
                         : "Not running"
                 )

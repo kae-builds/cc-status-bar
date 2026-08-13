@@ -134,6 +134,8 @@ final class NetworkHelper {
     ///   - useTailscale: If true, use Tailscale IP instead of local IP (legacy parameter)
     /// - Returns: vibeterm:// URL scheme for iOS app
     func generateConnectionURL(useTailscale: Bool = false) -> String? {
+        guard WebServer.shared.isRemoteEnabled else { return nil }
+
         let host: String?
         if useTailscale {
             host = getTailscaleIP()
@@ -152,6 +154,8 @@ final class NetworkHelper {
     ///   - tailscaleStatus: Optional pre-fetched Tailscale status
     /// - Returns: vibeterm:// URL scheme for iOS app
     func generateConnectionURL(hostType: ConnectionHost, tailscaleStatus: TailscaleStatus? = nil) -> String? {
+        guard WebServer.shared.isRemoteEnabled else { return nil }
+
         let host: String?
 
         switch hostType {

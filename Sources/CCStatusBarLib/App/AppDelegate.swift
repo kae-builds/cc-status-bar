@@ -62,14 +62,8 @@ public class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Setup global hotkey
         setupHotkey()
 
-        // Start web server if enabled
-        if AppSettings.webServerEnabled {
-            do {
-                try WebServer.shared.start()
-            } catch {
-                DebugLog.log("[AppDelegate] Failed to start web server: \(error)")
-            }
-        }
+        // Always start local Codex notify receiver; enable remote mode only if user opted in.
+        configureWebServerOnLaunch()
 
         // Start WebSocket session observation (for iOS app real-time updates)
         WebSocketManager.shared.observeSessions(sessionObserver.$sessions)
@@ -508,27 +502,23 @@ public class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @MainActor @objc private func toggleWebServer(_ sender: NSMenuItem) {
-        let newState = !AppSettings.webServerEnabled
-        AppSettings.webServerEnabled = newState
-        sender.state = newState ? .on : .off
+        let previousSetting = AppSettings.webServerEnabled
+        let enableRemote = !previousSetting
+        let targetMode: WebServer.Mode = enableRemote ? .remoteEnabled : .localOnly
 
-        if newState {
-            do {
-                try WebServer.shared.start()
-                DebugLog.log("[AppDelegate] Web server started")
-            } catch {
-                DebugLog.log("[AppDelegate] Failed to start web server: \(error)")
-                // Revert setting on failure
-                AppSettings.webServerEnabled = false
-                sender.state = .off
-                showAlert(
-                    title: "Web Server Error",
-                    message: "Failed to start web server: \(error.localizedDescription)"
-                )
-            }
-        } else {
-            WebServer.shared.stop()
-            DebugLog.log("[AppDelegate] Web server stopped")
+        do {
+            try WebServer.shared.start(mode: targetMode)
+            AppSettings.webServerEnabled = enableRemote
+            sender.state = enableRemote ? .on : .off
+            DebugLog.log("[AppDelegate] Web server mode changed: \(targetMode)")
+        } catch {
+            DebugLog.log("[AppDelegate] Failed to switch web server mode to \(targetMode): \(error)")
+            AppSettings.webServerEnabled = previousSetting
+            sender.state = previousSetting ? .on : .off
+            showAlert(
+                title: "Web Server Error",
+                message: "Failed to update web server mode: \(error.localizedDescription)"
+            )
         }
 
         refreshUI()  // Update menu to show/hide port
@@ -573,8 +563,8 @@ public class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
 
         // WebSocket toggle
-        let serverRunning = WebServer.shared.isRunning
-        let serverTitle = serverRunning
+        let remoteEnabled = WebServer.shared.isRemoteEnabled
+        let serverTitle = remoteEnabled
             ? "WebSocket :\(WebServer.shared.actualPort)"
             : "WebSocket Off"
         let serverItem = NSMenuItem(
@@ -583,7 +573,7 @@ public class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             keyEquivalent: ""
         )
         serverItem.target = self
-        serverItem.state = serverRunning ? .on : .off
+        serverItem.state = remoteEnabled ? .on : .off
         menu.addItem(serverItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -638,6 +628,28 @@ public class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         return menu
+    }
+
+    @MainActor
+    private func configureWebServerOnLaunch() {
+        let targetMode: WebServer.Mode = AppSettings.webServerEnabled ? .remoteEnabled : .localOnly
+        do {
+            try WebServer.shared.start(mode: targetMode)
+            DebugLog.log("[AppDelegate] Web server started in mode \(targetMode)")
+        } catch {
+            DebugLog.log("[AppDelegate] Failed to start web server in mode \(targetMode): \(error)")
+
+            // Keep Codex status ingestion alive even when remote mode fails.
+            if targetMode == .remoteEnabled {
+                AppSettings.webServerEnabled = false
+                do {
+                    try WebServer.shared.start(mode: .localOnly)
+                    DebugLog.log("[AppDelegate] Fallback web server started in localOnly mode")
+                } catch {
+                    DebugLog.log("[AppDelegate] Failed to start fallback localOnly web server: \(error)")
+                }
+            }
+        }
     }
 
     @MainActor @objc private func setColorTheme(_ sender: NSMenuItem) {

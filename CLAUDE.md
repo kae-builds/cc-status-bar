@@ -6,10 +6,10 @@
 
 | Task | Required Files |
 |------|----------------|
-| Release | `scripts/release.sh` (実行), `.local/release.md` (参照のみ) |
+| Release | `scripts/release.sh` (実行) |
 | New Feature | `docs/SPEC.md`, `README.md` |
 | Bug Fix | `~/Library/Logs/CCStatusBar/debug.log` |
-| Design Decision | `docs/ask/` (past AI discussions) |
+| Stream Deck | `docs/STREAMDECK.md` |
 
 ### External API Usage
 
@@ -33,31 +33,64 @@
 
 ```
 Sources/
-├── main.swift              # Entry point (CLI/GUI switch)
-├── App/
-│   ├── AppDelegate.swift   # Menu bar UI, session display
-│   └── CCStatusBarApp.swift
-├── Services/
-│   ├── SessionObserver.swift  # File watching (Combine)
-│   ├── SessionStore.swift     # Session CRUD
-│   ├── TtyDetector.swift      # TTY detection
-│   ├── SetupManager.swift     # First-run setup, hooks
-│   ├── TerminalAdapter.swift  # Terminal adapter protocol
-│   ├── GhosttyHelper.swift    # Ghostty tab control (Accessibility API)
-│   ├── ITerm2Helper.swift     # iTerm2 tab control (AppleScript TTY search)
-│   ├── TmuxHelper.swift       # tmux pane control
-│   └── DebugLog.swift         # Debug logging
-├── Models/
-│   ├── Session.swift          # Session model
-│   ├── SessionStatus.swift    # Status enum
-│   ├── StoreData.swift        # JSON store structure
-│   └── HookEvent.swift        # Hook event
-├── Views/
-│   └── SessionListView.swift  # SwiftUI (unused)
-└── CLI/
-    ├── HookCommand.swift      # `CCStatusBar hook <event>`
-    ├── SetupCommand.swift     # `CCStatusBar setup`
-    └── ListCommand.swift      # `CCStatusBar list`
+├── CCStatusBar/
+│   └── main.swift                  # Entry point (CLI/GUI switch)
+└── CCStatusBarLib/
+    ├── App/
+    │   ├── AppDelegate.swift        # Menu bar UI, session display
+    │   └── CCStatusBarApp.swift
+    ├── CLI/
+    │   ├── DictationCommand.swift   # Dictation control
+    │   ├── EmitCommand.swift        # Emit CCSB event
+    │   ├── FocusCommand.swift       # Focus a session's terminal
+    │   ├── HookCommand.swift        # `CCStatusBar hook <event>`
+    │   ├── ListCommand.swift        # `CCStatusBar list`
+    │   └── SetupCommand.swift       # `CCStatusBar setup`
+    ├── Models/
+    │   ├── CCSBEvent.swift          # CCSB event model
+    │   ├── CodexSession.swift       # Codex session model
+    │   ├── HookEvent.swift          # Hook event
+    │   ├── Session.swift            # Session model
+    │   ├── SessionStatus.swift      # Status enum
+    │   └── StoreData.swift          # JSON store structure
+    ├── Services/
+    │   ├── AnimationManager.swift   # Status-bar icon animation
+    │   ├── AppRuntime.swift         # App runtime/lifecycle wiring
+    │   ├── AppSettings.swift        # Persisted user settings
+    │   ├── CodexFocusHelper.swift   # Codex focus helper
+    │   ├── CodexObserver.swift      # Codex session observation
+    │   ├── CodexStatusReceiver.swift# Receives Codex status updates
+    │   ├── ColorTheme.swift         # Color/theme definitions
+    │   ├── DebugLog.swift           # Debug logging
+    │   ├── DiagnosticsManager.swift # Diagnostics collection
+    │   ├── EditorDetector.swift     # Editor detection
+    │   ├── EnvironmentResolver.swift# Environment resolution
+    │   ├── FocusManager.swift       # Session focus coordination
+    │   ├── GhosttyController.swift  # Ghostty control
+    │   ├── GhosttyHelper.swift      # Ghostty tab control (Accessibility API)
+    │   ├── HotkeyManager.swift      # Global hotkeys
+    │   ├── IconManager.swift        # Status-bar icon management
+    │   ├── ITerm2Controller.swift   # iTerm2 control
+    │   ├── ITerm2Helper.swift       # iTerm2 tab control (AppleScript TTY search)
+    │   ├── LaunchManager.swift      # Launch-at-login management
+    │   ├── NetworkHelper.swift      # Network helper (WebServer support)
+    │   ├── NotificationManager.swift# User notifications
+    │   ├── PermissionManager.swift  # Accessibility/permissions
+    │   ├── SessionObserver.swift    # File watching (Combine)
+    │   ├── SessionStore.swift       # Session CRUD
+    │   ├── SetupManager.swift       # First-run setup, hooks
+    │   ├── TerminalAppController.swift # Generic terminal-app control
+    │   ├── TerminalController.swift  # Terminal control coordination
+    │   ├── TmuxHelper.swift          # tmux pane control
+    │   ├── TtyDetector.swift         # TTY detection
+    │   ├── TtyHelper.swift           # TTY helper utilities
+    │   ├── WebServer.swift           # Embedded web server
+    │   └── WebSocketManager.swift    # WebSocket connections
+    └── Views/
+        ├── ConnectionSetupWindow.swift # Connection setup UI
+        ├── DiagnosticsWindow.swift     # Diagnostics UI
+        ├── SessionListView.swift       # SwiftUI session list
+        └── SessionListWindow.swift     # Session list window
 ```
 
 ## Build & Run
@@ -87,10 +120,19 @@ Track these as **separate items** in TodoWrite:
 
 **Full specification**: See [docs/STREAMDECK.md](docs/STREAMDECK.md) for detailed plugin spec, troubleshooting, and development notes.
 
+Plugin source lives in `StreamDeckPlugin/com.ccstatusbar.sdPlugin/` (plugin UUID: `com.ccstatusbar`).
+
 ### Build Command
 
 ```bash
-cd StreamDeckPlugin/cc-status-bar.sdPlugin
+# Full build + package (requires: npm install -g @elgato/cli)
+./StreamDeckPlugin/build.sh
+```
+
+`build.sh` compiles `com.ccstatusbar.sdPlugin/src/plugin.ts` to `bin/plugin.js`, then runs `streamdeck pack com.ccstatusbar.sdPlugin` (output: `com.ccstatusbar.streamDeckPlugin`). To compile only:
+
+```bash
+cd StreamDeckPlugin/com.ccstatusbar.sdPlugin
 npx tsc src/plugin.ts --outDir bin --target ES2020 --module CommonJS --esModuleInterop
 ```
 
@@ -98,11 +140,10 @@ npx tsc src/plugin.ts --outDir bin --target ES2020 --module CommonJS --esModuleI
 
 ```bash
 # Copy built plugin to installed location
-cp StreamDeckPlugin/cc-status-bar.sdPlugin/bin/plugin.js \
-   ~/Library/Application\ Support/com.elgato.StreamDeck/Plugins/cc-status-bar.sdPlugin/bin/
+cp StreamDeckPlugin/com.ccstatusbar.sdPlugin/bin/plugin.js ~/Library/Application\ Support/com.elgato.StreamDeck/Plugins/com.ccstatusbar.sdPlugin/bin/
 
-# Restart Stream Deck app
-pkill -x "Stream Deck" ; sleep 2 ; open -a "Elgato Stream Deck"
+# Restart Stream Deck app (safe restart)
+./scripts/restart-streamdeck.sh
 ```
 
 ### Rules
@@ -212,29 +253,23 @@ if waitingCount > 0 {
 
 **Rules:**
 1. **ALWAYS use `./scripts/release.sh`** - never execute release commands manually
-2. `.local/release.md` is for **reference only** (credentials, troubleshooting)
-3. Manual commands lead to permission errors and inconsistent builds
-4. The script handles: build, sign, DMG, notarize, staple, Stream Deck plugin
+2. Manual commands lead to permission errors and inconsistent builds
+3. The script handles: build, sign, DMG, notarize, staple, Stream Deck plugin
 
 **Important**: When icons or screenshots are updated, a new release must be created.
+
+## Local Overlay
+
+Machine-local, untracked files are managed via `.local-overlay/` (see `.local-overlay/README.md`):
+
+- `capture-local-overlay.sh` - snapshot local-only files into `.local-overlay/files/`
+- `apply-local-overlay.sh` - restore them onto a fresh checkout
 
 ## Document Sync
 
 - README.md: User-facing feature descriptions (only implemented features)
 - SPEC.md: Implementation specifications (no line numbers, reference by method name)
 - Update both when adding/removing/changing features
-
-## Pre-commit/Pre-push Check (MANDATORY)
-
-Before commit or push, **always run `/publish-check` skill**.
-
-| Operation | Trigger Words |
-|-----------|---------------|
-| git commit | コミット, commit |
-| git push | プッシュ, push, 上げて, あげて |
-| release | リリース, release, deploy, デプロイ |
-
-**Prohibited**: Committing or pushing without running `/publish-check`
 
 ---
 

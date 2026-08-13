@@ -496,17 +496,24 @@ final class SetupManager {
             if len(sys.argv) < 2:
                 sys.exit(0)
 
-            event = json.loads(sys.argv[1])
-            data = json.dumps(event).encode()
             try:
-                req = urllib.request.Request(
-                    "http://localhost:8080/api/codex/status",
-                    data=data,
-                    headers={"Content-Type": "application/json"}
-                )
-                urllib.request.urlopen(req, timeout=1)
+                event = json.loads(sys.argv[1])
             except:
-                pass  # Ignore errors if CC Status Bar is not running
+                sys.exit(0)
+
+            data = json.dumps(event).encode()
+            # Try all configured CCSB ports (8080-8089) to avoid fixed-port mismatch.
+            for port in range(8080, 8090):
+                try:
+                    req = urllib.request.Request(
+                        f"http://127.0.0.1:{port}/api/codex/status",
+                        data=data,
+                        headers={"Content-Type": "application/json"}
+                    )
+                    urllib.request.urlopen(req, timeout=0.5)
+                    break
+                except:
+                    continue
             """
 
         try fm.createDirectory(at: Self.binDir, withIntermediateDirectories: true)
