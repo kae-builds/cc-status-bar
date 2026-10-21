@@ -97,7 +97,7 @@ Sources/
 
 ```bash
 # Build and launch
-pkill -f CCStatusBar
+pkill -x CCStatusBar
 swift build
 cp .build/debug/CCStatusBar CCStatusBar.app/Contents/MacOS/
 codesign --force --deep --sign "CCStatusBar Dev" CCStatusBar.app
@@ -106,17 +106,11 @@ open CCStatusBar.app
 
 **Note**: Use self-signed certificate "CCStatusBar Dev" to preserve Accessibility permissions across rebuilds.
 
-### Post-Build Checklist (MANDATORY)
+### Post-Build Checklist
 
-Track these as **separate items** in TodoWrite:
+A successful build is not completion: after `swift build`, restart the app (`pkill + cp + codesign + open`) and check `tail ~/Library/Logs/CCStatusBar/debug.log` before marking the work done.
 
-1. `swift build` - Build
-2. `pkill + cp + codesign + open` - Restart app
-3. `tail ~/Library/Logs/CCStatusBar/debug.log` - Check logs
-
-**Build success is not completion. Restart and verify logs before marking done.**
-
-## Stream Deck Plugin Build & Deploy (MANDATORY)
+## Stream Deck Plugin Build & Deploy
 
 **Full specification**: See [docs/STREAMDECK.md](docs/STREAMDECK.md) for detailed plugin spec, troubleshooting, and development notes.
 
@@ -136,7 +130,7 @@ cd StreamDeckPlugin/com.ccstatusbar.sdPlugin
 npx tsc src/plugin.ts --outDir bin --target ES2020 --module CommonJS --esModuleInterop
 ```
 
-### Deploy & Restart (Claude MUST do this)
+### Deploy & Restart
 
 ```bash
 # Copy built plugin to installed location
@@ -148,14 +142,11 @@ cp StreamDeckPlugin/com.ccstatusbar.sdPlugin/bin/plugin.js ~/Library/Application
 
 ### Rules
 
-1. **Claude MUST complete full cycle**: Build → Copy → Restart
-2. **NEVER ask user** to restart Stream Deck or copy files
-3. **NEVER end task** after build only - deploy is part of implementation
-4. **Test immediately** after restart if possible
+Claude runs the full cycle (Build → Copy → Restart) itself instead of asking the user to restart Stream Deck or copy files, because the deploy is part of the implementation and a build alone is not done. After the restart, test the change on the device when it is available.
 
-### ⚠️ CRITICAL: Restart Method
+### Restart Method
 
-**NEVER kill plugin processes directly.** Always use the restart script:
+Restart Stream Deck only through the restart script; do not kill plugin processes directly:
 
 ```bash
 # ✅ CORRECT: Use the safe restart script
@@ -240,21 +231,9 @@ if waitingCount > 0 {
 - Settings: `~/.claude/settings.json`
 - Logs: `~/Library/Logs/CCStatusBar/debug.log`
 
-## Release (MANDATORY)
+## Release
 
-### ⚠️ CRITICAL: Always use the release script
-
-```bash
-# ✅ CORRECT: Use the release script
-./scripts/release.sh
-
-# ❌ WRONG: Manual commands (hdiutil, codesign, notarytool, etc.)
-```
-
-**Rules:**
-1. **ALWAYS use `./scripts/release.sh`** - never execute release commands manually
-2. Manual commands lead to permission errors and inconsistent builds
-3. The script handles: build, sign, DMG, notarize, staple, Stream Deck plugin
+Release only through `./scripts/release.sh`; do not run hdiutil, codesign, notarytool, etc. by hand, because manual runs have caused permission errors and inconsistent builds. The script handles build, sign, DMG, notarize, staple, and the Stream Deck plugin.
 
 **Important**: When icons or screenshots are updated, a new release must be created.
 
